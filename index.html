@@ -190,6 +190,41 @@
         let animationId;
         let level = 1;
         
+        const GAME_SETTINGS = {
+            BALL_SPEED: {
+                MIN: 3,
+                MAX: 8
+            },
+            MAX_PARTICLES: 300,    // 최대 파티클 수
+            MAX_BALLS: 300          // 최대 공 개수
+        };
+
+        // 파티클 생성 함수 수정
+        function createParticles(x, y, color, count) {
+            // 최대 파티클 수 제한 확인
+            if (particles.length >= GAME_SETTINGS.MAX_PARTICLES) {
+                particles.splice(0, count); // 가장 오래된 파티클 제거
+            }
+            
+            const actualCount = Math.min(count, GAME_SETTINGS.MAX_PARTICLES - particles.length);
+            
+            for (let i = 0; i < actualCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 3 + 1;
+                const size = Math.random() * 4 + 2;
+                
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    color: color,
+                    size: size,
+                    life: 40
+                });
+            }
+        }
+        
         // 패들 속성
         const paddleHeight = 15;
         let paddleWidth = 100;
@@ -226,7 +261,7 @@
         // 파워업 종류
         const POWERUP_TYPES = [
             { name: 'wider', color: '#00ff00', chance: 0.3 },
-            { name: 'slower', color: '#0000ff', chance: 0.25 },
+
             { name: 'multiball', color: '#ffff00', chance: 0.2 },
             { name: 'life', color: '#ff0000', chance: 0.15 },
             { name: 'surprise', color: '#ff00ff', chance: 0.1 }
@@ -371,7 +406,14 @@
         
         // 파티클 생성
         function createParticles(x, y, color, count) {
-            for (let i = 0; i < count; i++) {
+            // 최대 파티클 수 제한 확인
+            if (particles.length >= GAME_SETTINGS.MAX_PARTICLES) {
+                particles.splice(0, count); // 가장 오래된 파티클 제거
+            }
+            
+            const actualCount = Math.min(count, GAME_SETTINGS.MAX_PARTICLES - particles.length);
+            
+            for (let i = 0; i < actualCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = Math.random() * 3 + 1;
                 const size = Math.random() * 4 + 2;
@@ -674,31 +716,38 @@
                     
                 case 'multiball':
                     // 공 분열
-                    const ballCount = balls.length;
-                    for (let i = 0; i < ballCount; i++) {
-                        if (balls[i].active) {
-                            const originalBall = balls[i];
-                            
-                            // 두 개의 새 공 추가
-                            for (let j = 0; j < 2; j++) {
-                                const angle = Math.random() * Math.PI / 2 - Math.PI / 4;
-                                const speed = Math.sqrt(originalBall.speedX * originalBall.speedX + originalBall.speedY * originalBall.speedY);
+                    // 현재 활성화된 공의 수가 최대 개수보다 작을 때만 분열
+                    if (balls.length < GAME_SETTINGS.MAX_BALLS) {
+                        const ballCount = balls.length;
+                        for (let i = 0; i < ballCount; i++) {
+                            if (balls[i].active) {
+                                const originalBall = balls[i];
                                 
-                                balls.push({
-                                    x: originalBall.x,
-                                    y: originalBall.y,
-                                    speedX: Math.cos(angle) * speed * (j % 2 === 0 ? 1 : -1),
-                                    speedY: -Math.abs(Math.sin(angle) * speed),
-                                    radius: ballRadius,
-                                    color: getRandomColor(),
-                                    active: true
-                                });
+                                // 분열 후 전체 공의 수가 최대치를 넘지 않도록 확인
+                                const newBallsToAdd = Math.min(2, GAME_SETTINGS.MAX_BALLS - balls.length);
                                 
-                                activeBalls++;
+                                for (let j = 0; j < newBallsToAdd; j++) {
+                                    const angle = Math.random() * Math.PI / 2 - Math.PI / 4;
+                                    const speed = Math.sqrt(originalBall.speedX * originalBall.speedX + originalBall.speedY * originalBall.speedY);
+                                    
+                                    balls.push({
+                                        x: originalBall.x,
+                                        y: originalBall.y,
+                                        speedX: Math.cos(angle) * speed * (j % 2 === 0 ? 1 : -1),
+                                        speedY: -Math.abs(Math.sin(angle) * speed),
+                                        radius: ballRadius,
+                                        color: getRandomColor(),
+                                        active: true
+                                    });
+                                    
+                                    activeBalls++;
+                                }
                             }
                         }
+                        showNotification("공 분열!");
+                    } else {
+                        showNotification("최대 공 개수 도달!");
                     }
-                    showNotification("공 분열!");
                     break;
                     
                 case 'life':
@@ -730,14 +779,12 @@
                 if (ball.x + ball.speedX > canvas.width - ball.radius || ball.x + ball.speedX < ball.radius) {
                     ball.speedX = -ball.speedX;
                     playSound(220, 'sine', 0.1);
-                    canvas.classList.add('shake');
-                    setTimeout(() => canvas.classList.remove('shake'), 200);
+
                 }
                 if (ball.y + ball.speedY < ball.radius) {
                     ball.speedY = -ball.speedY;
                     playSound(220, 'sine', 0.1);
-                    canvas.classList.add('shake');
-                    setTimeout(() => canvas.classList.remove('shake'), 200);
+
                 } else if (ball.y + ball.speedY > canvas.height - ball.radius) {
                     // 공이 바닥에 닿았을 때
                     if (ball.x > paddleX && ball.x < paddleX + paddleWidth) {
@@ -961,6 +1008,7 @@
                 if(ball.active){
                     ball.speedX *= 1.1;
                     ball.speedY *= 1.1;
+                    limitBallSpeed(ball);
                 }
             });
             scoreDisplay.textContent = '점수: ' + score + ' | 생명: ' + lives + ' | 레벨: ' + level;
@@ -1091,6 +1139,21 @@
             playSound(400, 'sine', 0.2);
             playSound(500, 'sine', 0.2);
         });
+
+        // 공 속도 제한 함수
+        function limitBallSpeed(ball) {
+            const currentSpeed = Math.sqrt(ball.speedX * ball.speedX + ball.speedY * ball.speedY);
+            
+            if (currentSpeed > GAME_SETTINGS.BALL_SPEED.MAX) {
+                const factor = GAME_SETTINGS.BALL_SPEED.MAX / currentSpeed;
+                ball.speedX *= factor;
+                ball.speedY *= factor;
+            } else if (currentSpeed < GAME_SETTINGS.BALL_SPEED.MIN) {
+                const factor = GAME_SETTINGS.BALL_SPEED.MIN / currentSpeed;
+                ball.speedX *= factor;
+                ball.speedY *= factor;
+            }
+        }
 
         // 초기 별 생성 호출
         initStars();
